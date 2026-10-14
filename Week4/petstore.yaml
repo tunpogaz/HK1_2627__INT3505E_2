@@ -1,0 +1,183 @@
+openapi: 3.0.3
+info:
+  title: Swagger Petstore
+  description: Ví dụ chính thức của OpenAPI Initiative mô tả dịch vụ cửa hàng thú cưng.
+  version: 1.0.0
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: http://petstore.swagger.io/v1
+    description: Máy chủ thử nghiệm Petstore v1
+paths:
+  /pets:
+    get:
+      summary: Lấy danh sách thú cưng
+      description: Trả về danh sách thú cưng có phân trang qua query parameter limit.
+      operationId: listPets
+      tags:
+        - pets
+      parameters:
+        - name: limit
+          in: query
+          description: Số lượng thú cưng tối đa trả về trong một lần truy vấn (tối đa 100)
+          required: false
+          schema:
+            type: integer
+            format: int32
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Danh sách thú cưng được phân trang
+          headers:
+            x-next:
+              description: Đường dẫn link đến trang kế tiếp
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pets'
+        '400':
+          description: Tham số truy vấn không hợp lệ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Lỗi không mong đợi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      summary: Thêm một thú cưng mới
+      description: Tạo mới thông tin một thú cưng và lưu vào cửa hàng.
+      operationId: createPets
+      tags:
+        - pets
+      requestBody:
+        description: Thông tin đối tượng thú cưng cần tạo mới
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Pet'
+      responses:
+        '201':
+          description: Tạo thú cưng thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        '400':
+          description: Dữ liệu gửi lên không đúng định dạng
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Lỗi không mong đợi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /pets/{petId}:
+    get:
+      summary: Xem chi tiết thú cưng theo ID
+      description: Trả về thông tin chi tiết của một thú cưng dựa trên mã ID.
+      operationId: showPetById
+      tags:
+        - pets
+      parameters:
+        - name: petId
+          in: path
+          required: true
+          description: ID của thú cưng cần lấy thông tin
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tìm thấy thú cưng thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        '404':
+          description: Không tìm thấy thú cưng với ID cung cấp
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Lỗi không mong đợi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      summary: Xóa một thú cưng theo ID
+      description: Xóa bỏ thú cưng khỏi cửa hàng dựa trên mã ID.
+      operationId: deletePet
+      tags:
+        - pets
+      parameters:
+        - name: petId
+          in: path
+          required: true
+          description: ID của thú cưng cần xóa
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Xóa thành công, không trả về nội dung
+        '404':
+          description: Không tìm thấy thú cưng cần xóa
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        default:
+          description: Lỗi không mong đợi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  schemas:
+    Pet:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          example: "Doggie"
+        tag:
+          type: string
+          example: "dog"
+    Pets:
+      type: array
+      maxItems: 100
+      items:
+        $ref: '#/components/schemas/Pet'
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          format: int32
+          example: 404
+        message:
+          type: string
+          example: "Resource not found"
+          

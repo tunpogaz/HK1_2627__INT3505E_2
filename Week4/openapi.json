@@ -1,0 +1,551 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Tasks API",
+    "description": "API quản lý công việc (tasks) nội bộ, hỗ trợ CRUD, lọc trạng thái, phân trang và xác thực Bearer Token JWT.",
+    "version": "1.0.0",
+    "contact": {
+      "name": "API Team",
+      "email": "api-team@example.vn"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000/v1",
+      "description": "Máy chủ phát triển cục bộ (Local Development)"
+    },
+    {
+      "url": "https://api.example.vn/v1",
+      "description": "Máy chủ Production"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "tasks",
+      "description": "Các thao tác quản lý danh sách và chi tiết công việc"
+    }
+  ],
+  "paths": {
+    "/tasks": {
+      "get": {
+        "summary": "Lấy danh sách công việc",
+        "description": "Trả về danh sách công việc có hỗ trợ phân trang và lọc theo trạng thái.",
+        "operationId": "listTasks",
+        "tags": [
+          "tasks"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          },
+          {
+            "$ref": "#/components/parameters/StatusFilter"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lấy danh sách công việc thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      },
+      "post": {
+        "summary": "Tạo công việc mới",
+        "description": "Tạo một công việc mới cho người dùng.",
+        "operationId": "createTask",
+        "tags": [
+          "tasks"
+        ],
+        "requestBody": {
+          "description": "Thông tin công việc cần tạo",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTaskInput"
+              },
+              "example": {
+                "title": "Thiết kế kiến trúc hệ thống Tasks API",
+                "status": "open",
+                "priority": "high",
+                "dueDate": "2026-10-25",
+                "assigneeId": "usr_001"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Tạo công việc thành công",
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "/v1/tasks/d3b07384-d113-460f-90e8-03b879c5a142"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      }
+    },
+    "/tasks/{taskId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/TaskIdParam"
+        }
+      ],
+      "get": {
+        "summary": "Lấy thông tin chi tiết một công việc",
+        "description": "Trả về chi tiết công việc tương ứng với mã định danh UUID.",
+        "operationId": "getTaskById",
+        "tags": [
+          "tasks"
+        ],
+        "responses": {
+          "200": {
+            "description": "Lấy chi tiết công việc thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "patch": {
+        "summary": "Cập nhật một phần công việc",
+        "description": "Cập nhật một số trường thông tin của công việc (JSON Merge Patch).",
+        "operationId": "patchTask",
+        "tags": [
+          "tasks"
+        ],
+        "requestBody": {
+          "description": "Các trường cần cập nhật",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTaskInput"
+              },
+              "example": {
+                "status": "in_progress",
+                "priority": "normal"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cập nhật công việc thành công",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Task"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Xóa một công việc",
+        "description": "Xóa vĩnh viễn công việc khỏi hệ thống. Thao tác có tính chất idempotent.",
+        "operationId": "deleteTask",
+        "tags": [
+          "tasks"
+        ],
+        "responses": {
+          "204": {
+            "description": "Xóa công việc thành công (Không trả về body)"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "TaskIdParam": {
+        "name": "taskId",
+        "in": "path",
+        "required": true,
+        "description": "Định danh duy nhất của task (định dạng UUID v4)",
+        "schema": {
+          "type": "string",
+          "format": "uuid",
+          "example": "d3b07384-d113-460f-90e8-03b879c5a142"
+        }
+      },
+      "PageLimit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "description": "Số lượng bản ghi tối đa trả về trên một trang (tối đa 100)",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 10,
+          "example": 10
+        }
+      },
+      "StatusFilter": {
+        "name": "status",
+        "in": "query",
+        "required": false,
+        "description": "Lọc danh sách công việc theo trạng thái",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "open",
+            "in_progress",
+            "done"
+          ],
+          "example": "open"
+        }
+      }
+    },
+    "schemas": {
+      "Task": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "status",
+          "priority",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "example": "d3b07384-d113-460f-90e8-03b879c5a142"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "example": "Viết OpenAPI spec cho Tasks API"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "in_progress",
+              "done"
+            ],
+            "example": "open"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "normal",
+              "high"
+            ],
+            "example": "high"
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-10-25"
+          },
+          "assigneeId": {
+            "type": "string",
+            "example": "usr_001"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-10-14T08:00:00Z"
+          }
+        }
+      },
+      "CreateTaskInput": {
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "example": "Viết OpenAPI spec cho Tasks API"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "in_progress",
+              "done"
+            ],
+            "default": "open",
+            "example": "open"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "normal",
+              "high"
+            ],
+            "default": "normal",
+            "example": "normal"
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-10-25"
+          },
+          "assigneeId": {
+            "type": "string",
+            "example": "usr_001"
+          }
+        }
+      },
+      "UpdateTaskInput": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "example": "Cập nhật tiêu đề tài liệu API"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "in_progress",
+              "done"
+            ],
+            "example": "done"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "low",
+              "normal",
+              "high"
+            ],
+            "example": "high"
+          },
+          "dueDate": {
+            "type": "string",
+            "format": "date",
+            "example": "2026-10-30"
+          },
+          "assigneeId": {
+            "type": "string",
+            "example": "usr_002"
+          }
+        }
+      },
+      "TaskPage": {
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "limit"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Task"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "example": 42
+          },
+          "limit": {
+            "type": "integer",
+            "example": 10
+          },
+          "hasMore": {
+            "type": "boolean",
+            "example": true
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "type",
+          "title",
+          "status"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri",
+            "example": "https://api.example.vn/errors/not-found"
+          },
+          "title": {
+            "type": "string",
+            "example": "Resource Not Found"
+          },
+          "status": {
+            "type": "integer",
+            "example": 404
+          },
+          "detail": {
+            "type": "string",
+            "example": "Không tìm thấy task với taskId đã cung cấp"
+          },
+          "instance": {
+            "type": "string",
+            "example": "/v1/tasks/d3b07384-d113-460f-90e8-03b879c5a142"
+          }
+        }
+      },
+      "ValidationError": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Error"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "invalidParams": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "example": "title"
+                    },
+                    "reason": {
+                      "type": "string",
+                      "example": "Trường title không được để trống"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "responses": {
+      "NotFound": {
+        "description": "Không tìm thấy tài nguyên yêu cầu",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "type": "https://api.example.vn/errors/not-found",
+              "title": "Task Not Found",
+              "status": 404,
+              "detail": "Task không tồn tại",
+              "instance": "/v1/tasks/d3b07384-d113-460f-90e8-03b879c5a142"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Thiếu hoặc sai thông tin xác thực Bearer Token",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "type": "https://api.example.vn/errors/unauthorized",
+              "title": "Unauthorized",
+              "status": 401,
+              "detail": "Token xác thực không hợp lệ hoặc đã hết hạn",
+              "instance": "/v1/tasks"
+            }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "Yêu cầu cú pháp không hợp lệ",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "ValidationError": {
+        "description": "Dữ liệu gửi lên không vượt qua kiểm tra ràng buộc nghiệp vụ",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/ValidationError"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Xác thực bằng JSON Web Token (JWT)"
+      }
+    }
+  }
+}
