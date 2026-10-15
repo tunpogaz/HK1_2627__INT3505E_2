@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://api.bookinghotel.com/schemas/room.json",
+  "title": "Room",
+  "description": "JSON Schema đặc tả tài nguyên Phòng Khách sạn",
+  "type": "object",
+  "required": ["id", "hotelId", "roomNumber", "floor", "roomType", "status"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^room_[a-zA-Z0-9_-]+$",
+      "description": "Định danh duy nhất của phòng với tiền tố room_"
+    },
+    "hotelId": {
+      "type": "string",
+      "pattern": "^hotel_[a-zA-Z0-9_-]+$",
+      "description": "Mã khách sạn sở hữu phòng"
+    },
+    "roomNumber": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20,
+      "description": "Số hiệu phòng (ví dụ: '302', 'PH-01')"
+    },
+    "floor": {
+      "type": "integer",
+      "description": "Tầng của phòng"
+    },
+    "roomType": {
+      "type": "object",
+      "required": ["id", "name", "basePricePerNight", "capacity"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "capacity": { "type": "integer", "minimum": 1 },
+        "bedType": { "type": "string" },
+        "basePricePerNight": {
+          "type": "object",
+          "required": ["amount", "currency"],
+          "properties": {
+            "amount": { "type": "number", "minimum": 0 },
+            "currency": { "type": "string", "default": "VND" }
+          }
+        }
+      },
+      "description": "Thông tin loại phòng được nhúng vào đối tượng phòng"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["available", "occupied", "reserved", "maintenance", "cleaning"],
+      "description": "Trạng thái sẵn sàng phục vụ của phòng"
+    },
+    "features": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Các đặc điểm nổi bật (ban công, view biển, bồn tắm nằm,...)"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}

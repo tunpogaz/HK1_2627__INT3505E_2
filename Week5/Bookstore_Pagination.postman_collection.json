@@ -1,0 +1,379 @@
+{
+  "info": {
+    "_postman_id": "b78b5980-8742-4fce-bc2e-13c5825a0a38",
+    "name": "Bookstore API - Pagination & Filtering (Week 5)",
+    "description": "Postman Collection hoàn chỉnh kiểm thử các chiến lược phân trang Offset vs Cursor, Filter by genre, Multi-key sort, Sparse fieldsets và xử lý lỗi theo chuẩn RESTful.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:5000",
+      "type": "string"
+    },
+    {
+      "key": "nextCursor",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Cursor Pagination",
+      "item": [
+        {
+          "name": "GET Books - Cursor Page 1 (Default)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Has cursor pagination metadata', function () {",
+                  "    pm.expect(jsonData.pagination.strategy).to.eql('cursor');",
+                  "    pm.expect(jsonData.pagination.has_more).to.be.true;",
+                  "    pm.expect(jsonData.pagination.next_cursor).to.be.a('string');",
+                  "});",
+                  "pm.collectionVariables.set('nextCursor', jsonData.pagination.next_cursor);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books?strategy=cursor&limit=10&sort=-id",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "books"],
+              "query": [
+                { "key": "strategy", "value": "cursor" },
+                { "key": "limit", "value": "10" },
+                { "key": "sort", "value": "-id" }
+              ]
+            },
+            "description": "Lấy trang 1 sử dụng chiến thuật Cursor Pagination với limit=10, sort theo -id. Script test tự động lưu next_cursor vào biến môi trường."
+          }
+        },
+        {
+          "name": "GET Books - Cursor Next Page",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Next page returned items successfully', function () {",
+                  "    pm.expect(jsonData.data.length).to.be.above(0);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books?strategy=cursor&limit=10&sort=-id&cursor={{nextCursor}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "books"],
+              "query": [
+                { "key": "strategy", "value": "cursor" },
+                { "key": "limit", "value": "10" },
+                { "key": "sort", "value": "-id" },
+                { "key": "cursor", "value": "{{nextCursor}}" }
+              ]
+            },
+            "description": "Lấy trang tiếp theo bằng cursor đã lưu từ request trước."
+          }
+        },
+        {
+          "name": "GET Books - Cursor with Sort by Price",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books?strategy=cursor&limit=15&sort=price",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "books"],
+              "query": [
+                { "key": "strategy", "value": "cursor" },
+                { "key": "limit", "value": "15" },
+                { "key": "sort", "value": "price" }
+              ]
+            },
+            "description": "Kiểm thử cursor composite seek với cột sắp xếp có nhiều giá trị trùng nhau, hệ thống tự tie-break bằng id."
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Offset Pagination",
+      "item": [
+        {
+          "name": "GET Books - Offset Page 1 (offset=0, limit=10)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books?strategy=offset&limit=10&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "books"],
+              "query": [
+                { "key": "strategy", "value": "offset" },
+                { "key": "limit", "value": "10" },
+                { "key": "offset", "value": "0" }
+              ]
+            },
+            "description": "Phân trang theo kiểu truyền thống Offset/Limit trang 1."
+          }
+        },
+        {
+          "name": "GET Books - Offset Page 2 (offset=10, limit=10)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books?strategy=offset&limit=10&offset=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "books"],
+              "query": [
+                { "key": "strategy", "value": "offset" },
+                { "key": "limit", "value": "10" },
+                { "key": "offset", "value": "10" }
+              ]
+            },
+            "description": "Nhảy tới trang 2 với offset=10."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Filtering & Searching",
+      "item": [
+        {
+          "name": "GET Books - Filter by Genre 'tech'",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books?genre=tech&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "books"],
+              "query": [
+                { "key": "genre", "value": "tech" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "description": "Lọc danh sách sách thuộc thể loại Technology & Software."
+          }
+        },
+        {
+          "name": "GET Books - Filter by Genre 'fiction'",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books?genre=fiction&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "books"],
+              "query": [
+                { "key": "genre", "value": "fiction" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "description": "Lọc danh sách sách thuộc thể loại Fiction & Literature."
+          }
+        },
+        {
+          "name": "GET Books - Filter by Price Range & In Stock",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books?price_min=200000&price_max=500000&in_stock=true&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "books"],
+              "query": [
+                { "key": "price_min", "value": "200000" },
+                { "key": "price_max", "value": "500000" },
+                { "key": "in_stock", "value": "true" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "description": "Kết hợp nhiều tiêu chí lọc: khoảng giá từ 200k đến 500k và còn hàng."
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Sorting (Multi-key)",
+      "item": [
+        {
+          "name": "GET Books - Multi-key Sort (?sort=-price,title)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books?sort=-price,title&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "books"],
+              "query": [
+                { "key": "sort", "value": "-price,title" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "description": "Sắp xếp đa khóa: Giá giảm dần (-price), nếu trùng giá thì xếp theo tiêu đề tăng dần."
+          }
+        },
+        {
+          "name": "GET Books - Multi-key Sort (?sort=price,id)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books?sort=price,id&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "books"],
+              "query": [
+                { "key": "sort", "value": "price,id" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "description": "Sắp xếp giá tăng dần kèm tie-breaker id."
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Field Selection & Validation",
+      "item": [
+        {
+          "name": "GET Books - Sparse Fieldsets (?fields=id,title,price)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books?fields=id,title,price&limit=5",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "books"],
+              "query": [
+                { "key": "fields", "value": "id,title,price" },
+                { "key": "limit", "value": "5" }
+              ]
+            },
+            "description": "Chỉ lấy các trường cần thiết nhằm tiết kiệm băng thông."
+          }
+        },
+        {
+          "name": "Validation - Reject Invalid Sort Column (400 Expected)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400 Bad Request', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books?sort=malicious_sql_inject",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "books"],
+              "query": [
+                { "key": "sort", "value": "malicious_sql_inject" }
+              ]
+            },
+            "description": "Kiểm thử cơ chế Sort Whitelisting ngăn chặn SQL Injection."
+          }
+        },
+        {
+          "name": "Validation - Reject Corrupted Cursor (400 Expected)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 400 Bad Request', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books?cursor=invalid_base64_payload",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "books"],
+              "query": [
+                { "key": "cursor", "value": "invalid_base64_payload" }
+              ]
+            },
+            "description": "Kiểm thử bắt lỗi khi cursor bị hỏng hoặc giải mã thất bại."
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Sub-resources & Catalog",
+      "item": [
+        {
+          "name": "GET Book Detail (ID 1)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "books", "1"]
+            }
+          }
+        },
+        {
+          "name": "GET Book Authors (N:M sub-resource)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/books/1/authors",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "books", "1", "authors"]
+            }
+          }
+        },
+        {
+          "name": "GET All Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "categories"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+

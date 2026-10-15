@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://api.bookinghotel.com/schemas/hotel.json",
+  "title": "Hotel",
+  "description": "JSON Schema đặc tả tài nguyên Khách sạn",
+  "type": "object",
+  "required": ["id", "name", "address", "city", "starRating", "contact", "createdAt"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^hotel_[a-zA-Z0-9_-]+$",
+      "description": "Định danh duy nhất của khách sạn với tiền tố hotel_"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 150,
+      "description": "Tên khách sạn"
+    },
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$",
+      "description": "Đường dẫn thân thiện SEO"
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 2000,
+      "description": "Mô tả chi tiết về khách sạn"
+    },
+    "address": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 255,
+      "description": "Địa chỉ cụ thể của khách sạn"
+    },
+    "city": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 100,
+      "description": "Thành phố / Tỉnh"
+    },
+    "country": {
+      "type": "string",
+      "default": "Vietnam",
+      "description": "Quốc gia"
+    },
+    "starRating": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "description": "Số sao đánh giá tiêu chuẩn từ 1 đến 5"
+    },
+    "averageRating": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 5,
+      "description": "Điểm đánh giá trung bình từ khách hàng"
+    },
+    "totalReviews": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Tổng số lượng đánh giá"
+    },
+    "contact": {
+      "type": "object",
+      "required": ["phone", "email"],
+      "properties": {
+        "phone": {
+          "type": "string",
+          "pattern": "^(\\+84|0)[0-9]{9,10}$",
+          "description": "Số điện thoại liên hệ"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Email liên hệ chính thức"
+        },
+        "website": {
+          "type": "string",
+          "format": "uri",
+          "description": "Trang web chính thức"
+        }
+      }
+    },
+    "amenities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "category": { "type": "string" }
+        }
+      },
+      "description": "Danh sách các tiện ích chính của khách sạn"
+    },
+    "photos": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uri"
+      },
+      "description": "Danh sách URL hình ảnh của khách sạn"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Thời gian tạo bản ghi theo chuẩn ISO 8601"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Thời gian cập nhật bản ghi gần nhất theo chuẩn ISO 8601"
+    }
+  }
+}

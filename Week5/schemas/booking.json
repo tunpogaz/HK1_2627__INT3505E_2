@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://api.bookinghotel.com/schemas/booking.json",
+  "title": "Booking",
+  "description": "JSON Schema đặc tả tài nguyên Đơn đặt phòng",
+  "type": "object",
+  "required": [
+    "id",
+    "bookingCode",
+    "guest",
+    "hotelId",
+    "checkInDate",
+    "checkOutDate",
+    "items",
+    "status",
+    "payment",
+    "createdAt"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^bk_[a-zA-Z0-9_-]+$",
+      "description": "Định danh duy nhất của đơn đặt phòng với tiền tố bk_"
+    },
+    "bookingCode": {
+      "type": "string",
+      "pattern": "^BK[0-9]{8}$",
+      "description": "Mã đặt phòng hiển thị cho khách hàng (ví dụ: BK20261015)"
+    },
+    "guest": {
+      "type": "object",
+      "required": ["userId", "fullName", "email", "phone"],
+      "properties": {
+        "userId": { "type": "string" },
+        "fullName": { "type": "string", "minLength": 2 },
+        "email": { "type": "string", "format": "email" },
+        "phone": { "type": "string" }
+      },
+      "description": "Thông tin khách hàng đặt phòng"
+    },
+    "hotelId": {
+      "type": "string",
+      "pattern": "^hotel_[a-zA-Z0-9_-]+$",
+      "description": "Mã khách sạn được đặt"
+    },
+    "checkInDate": {
+      "type": "string",
+      "format": "date",
+      "description": "Ngày nhận phòng (YYYY-MM-DD)"
+    },
+    "checkOutDate": {
+      "type": "string",
+      "format": "date",
+      "description": "Ngày trả phòng (YYYY-MM-DD)"
+    },
+    "totalNights": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Tổng số đêm lưu trú"
+    },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/bookingItem"
+      },
+      "description": "Danh sách các loại phòng và số lượng phòng đặt"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "confirmed", "checked_in", "completed", "cancelled"],
+      "description": "Trạng thái của vòng đời đơn đặt phòng"
+    },
+    "payment": {
+      "type": "object",
+      "required": ["status", "totalAmount", "currency"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["unpaid", "partially_paid", "paid", "refunded"]
+        },
+        "method": {
+          "type": "string",
+          "enum": ["credit_card", "bank_transfer", "momo", "vnpay", "pay_at_hotel"]
+        },
+        "totalAmount": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Tổng số tiền cần thanh toán"
+        },
+        "currency": {
+          "type": "string",
+          "enum": ["VND", "USD", "EUR"],
+          "default": "VND"
+        },
+        "paidAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "specialRequests": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Yêu cầu đặc biệt của khách hàng"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Thời gian tạo đơn theo chuẩn ISO 8601"
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Thời gian cập nhật trạng thái đơn gần nhất"
+    }
+  },
+  "$defs": {
+    "bookingItem": {
+      "type": "object",
+      "required": ["roomTypeId", "roomTypeName", "quantity", "unitPrice"],
+      "properties": {
+        "roomTypeId": { "type": "string" },
+        "roomTypeName": { "type": "string" },
+        "quantity": { "type": "integer", "minimum": 1 },
+        "unitPrice": { "type": "number", "minimum": 0 },
+        "subtotal": { "type": "number", "minimum": 0 }
+      }
+    }
+  }
+}
