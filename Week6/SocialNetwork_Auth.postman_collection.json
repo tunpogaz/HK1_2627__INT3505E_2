@@ -1,0 +1,410 @@
+{
+  "info": {
+    "_postman_id": "c89b7021-3942-4de2-98e1-5e26315a0b77",
+    "name": "Social Network API - Auth & Posts (Week 6)",
+    "description": "Postman Collection hoàn chỉnh kiểm thử các tính năng Authentication & Authorization của Buổi 6 (UET INT3505E):\n- Đăng nhập JWT (Access + Refresh token)\n- Làm mới phiên (Refresh Token Rotation)\n- Kiểm tra phân quyền 3 lớp (AuthN -> Scope -> Object-Level Auth chống BOLA)\n- Xử lý lỗi theo chuẩn RFC 7807 (Problem Details).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:5000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "aliceAccessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "aliceRefreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bobAccessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "guestAccessToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Authentication (Login & Refresh)",
+      "item": [
+        {
+          "name": "1.1 Login Alice (Success - Save Tokens)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Has access and refresh tokens', function () {",
+                  "    pm.expect(jsonData).to.have.property('accessToken');",
+                  "    pm.expect(jsonData).to.have.property('refreshToken');",
+                  "    pm.expect(jsonData.user).to.not.have.property('password_hash');",
+                  "});",
+                  "pm.collectionVariables.set('aliceAccessToken', jsonData.accessToken);",
+                  "pm.collectionVariables.set('aliceRefreshToken', jsonData.refreshToken);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"alice@vnu.edu.vn\",\n  \"password\": \"AlicePass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Đăng nhập với tài khoản Alice. Script tự động lưu accessToken và refreshToken vào biến môi trường Postman."
+          }
+        },
+        {
+          "name": "1.2 Login Bob (Success - Save Token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.collectionVariables.set('bobAccessToken', jsonData.accessToken);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"bob@vnu.edu.vn\",\n  \"password\": \"BobPass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "1.3 Login Guest (Missing posts:read scope)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.collectionVariables.set('guestAccessToken', jsonData.accessToken);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"guest@vnu.edu.vn\",\n  \"password\": \"GuestPass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "1.4 Login Failure (Invalid Password - 401 Expected)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 401 Unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"alice@vnu.edu.vn\",\n  \"password\": \"WrongPassword!!!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "1.5 Refresh Token (Token Rotation)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200 OK', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "pm.collectionVariables.set('aliceAccessToken', jsonData.accessToken);",
+                  "pm.collectionVariables.set('aliceRefreshToken', jsonData.refreshToken);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceRefreshToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "refresh"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Posts API & BOLA Authorization Checks",
+      "item": [
+        {
+          "name": "2.1 Get Public Post (Alice reads Post 1 - 200 OK)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/posts/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["posts", "1"]
+            },
+            "description": "Bài viết public, mọi user đã login và có scope posts:read đều đọc được."
+          }
+        },
+        {
+          "name": "2.2 Get Own Private Post (Alice reads Post 2 - 200 OK)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/posts/2",
+              "host": ["{{baseUrl}}"],
+              "path": ["posts", "2"]
+            },
+            "description": "Post 2 là bài private của chính Alice. Alice được phép đọc."
+          }
+        },
+        {
+          "name": "2.3 BOLA Test: Bob reads Alice's Private Post (403 Expected)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 403 Forbidden (BOLA Blocked)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test('Error code is BOLA_ACCESS_DENIED', function () {",
+                  "    pm.expect(body.code).to.eql('BOLA_ACCESS_DENIED');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bobAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/posts/2",
+              "host": ["{{baseUrl}}"],
+              "path": ["posts", "2"]
+            },
+            "description": "Bob cố tình đọc trộm Post 2 (Private) của Alice. Hệ thống ngăn chặn theo chuẩn OWASP API1:2023 (BOLA)."
+          }
+        },
+        {
+          "name": "2.4 Scope Test: Guest missing posts:read (403 Expected)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 403 Forbidden (Scope Missing)', function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});",
+                  "var body = pm.response.json();",
+                  "pm.test('Error code is INSUFFICIENT_SCOPE', function () {",
+                  "    pm.expect(body.code).to.eql('INSUFFICIENT_SCOPE');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{guestAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/posts/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["posts", "1"]
+            },
+            "description": "Tài khoản Guest không có scope posts:read nên bị từ chối."
+          }
+        },
+        {
+          "name": "2.5 Missing Token Test (401 Expected)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 401 Unauthorized', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/posts/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["posts", "1"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Logout & Revocation",
+      "item": [
+        {
+          "name": "3.1 Logout (Revoke Current Token)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "logout"]
+            }
+          }
+        },
+        {
+          "name": "3.2 Use Revoked Token (401 Expected)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 401 Unauthorized (Token Revoked)', function () {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{aliceAccessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/posts/1",
+              "host": ["{{baseUrl}}"],
+              "path": ["posts", "1"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
+

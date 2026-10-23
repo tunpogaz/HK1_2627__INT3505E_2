@@ -5,7 +5,7 @@ Week 5: Flask Pagination API
 import base64
 import json
 from datetime import datetime, timezone
-from flask import Flask, jsonify, request, abort
+from flask import Flask, jsonify, request, abort, render_template_string
 from sqlalchemy import select, func, or_, and_
 
 from models import db, Book, Category, Author, BookAuthor, Review, User
@@ -150,7 +150,414 @@ def apply_cursor_condition(query, cursor_data: dict, current_sort: str, primary_
     return query, None
 
 
-# API Routes#
+# ============================================================================
+# DEMO WEB UI ROUTE (Localhost Interactive Demo)
+# ============================================================================
+
+DEMO_HTML = """
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bookstore API - Pagination & Filtering Demo (Week 5)</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style>
+        body { background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #1e293b; }
+        .hero { background: linear-gradient(135deg, #1e3a8a 0%, #0284c7 100%); color: white; padding: 2.5rem 0; border-radius: 0 0 1.5rem 1.5rem; margin-bottom: 2rem; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        .card { border: none; border-radius: 1rem; box-shadow: 0 2px 12px rgba(0,0,0,0.04); transition: transform 0.2s, box-shadow 0.2s; }
+        .card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+        .book-card { height: 100%; display: flex; flex-direction: column; justify-content: space-between; border-left: 4px solid #0284c7; }
+        .badge-genre { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; padding: 0.35rem 0.65rem; border-radius: 2rem; }
+        .genre-tech { background-color: #e0f2fe; color: #0369a1; }
+        .genre-science { background-color: #ecfdf5; color: #047857; }
+        .genre-fiction { background-color: #fdf2f8; color: #be185d; }
+        .genre-business { background-color: #fef3c7; color: #b45309; }
+        .genre-history { background-color: #f3e8ff; color: #6b21a8; }
+        .price-tag { font-size: 1.15rem; font-weight: 700; color: #0f172a; }
+        .api-url-box { background-color: #0f172a; color: #38bdf8; font-family: SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.85rem; padding: 0.85rem 1.25rem; border-radius: 0.75rem; word-break: break-all; }
+        .json-viewer { background-color: #0f172a; color: #e2e8f0; font-family: SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 0.8rem; padding: 1rem; border-radius: 0.75rem; max-height: 380px; overflow-y: auto; }
+        .token-badge { background-color: #f1f5f9; color: #475569; font-family: monospace; padding: 0.25rem 0.5rem; border-radius: 0.35rem; font-size: 0.75rem; border: 1px dashed #cbd5e1; }
+        .strategy-pill { cursor: pointer; padding: 0.6rem 1.25rem; border-radius: 2rem; font-weight: 600; transition: all 0.2s; }
+        .strategy-pill.active { background-color: #1e3a8a; color: white; box-shadow: 0 2px 8px rgba(30,58,138,0.3); }
+        .strategy-pill:not(.active) { background-color: #e2e8f0; color: #475569; }
+    </style>
+</head>
+<body>
+
+<div class="hero">
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <span class="badge bg-white text-primary mb-2 px-3 py-1 fw-bold">UET INT3505E · Kỹ thuật Hướng Dịch vụ</span>
+                <h1 class="h3 fw-bold mb-1"><i class="fa-solid fa-book-open me-2"></i>Bookstore API · Phân trang & Lọc dữ liệu</h1>
+                <p class="mb-0 text-white-50 small">Demo trực quan trên Localhost: So sánh <b>Offset/Limit</b> vs <b>Cursor-based</b> Pagination, Multi-key Sort & Filter</p>
+            </div>
+            <div class="text-end">
+                <span class="badge bg-success-subtle text-success border border-success px-3 py-2">
+                    <i class="fa-solid fa-circle-check me-1"></i>Server Online (Port 5000)
+                </span>
+                <div class="small text-white-50 mt-1">SV: Vũ Tuấn Phong - 22028258</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container pb-5">
+    <!-- Controls Section -->
+    <div class="card p-4 mb-4">
+        <div class="row g-3 align-items-center">
+            <!-- Strategy Selector -->
+            <div class="col-12 col-md-5">
+                <label class="form-label fw-bold small text-muted text-uppercase mb-2">Chiến thuật phân trang</label>
+                <div class="d-flex gap-2">
+                    <button class="btn strategy-pill active flex-fill" id="btnCursor" onclick="setStrategy('cursor')">
+                        <i class="fa-solid fa-bolt me-1"></i>Cursor-based
+                    </button>
+                    <button class="btn strategy-pill flex-fill" id="btnOffset" onclick="setStrategy('offset')">
+                        <i class="fa-solid fa-list-ol me-1"></i>Offset / Limit
+                    </button>
+                </div>
+            </div>
+
+            <!-- Genre Filter -->
+            <div class="col-6 col-md-3">
+                <label class="form-label fw-bold small text-muted text-uppercase mb-2">Thể loại (Genre)</label>
+                <select class="form-select" id="selectGenre" onchange="resetAndFetch()">
+                    <option value="">-- Tất cả thể loại --</option>
+                    <option value="tech">Công nghệ (tech)</option>
+                    <option value="science">Khoa học (science)</option>
+                    <option value="fiction">Văn học (fiction)</option>
+                    <option value="business">Kinh doanh (business)</option>
+                    <option value="history">Lịch sử (history)</option>
+                </select>
+            </div>
+
+            <!-- Sort Multi-key -->
+            <div class="col-6 col-md-4">
+                <label class="form-label fw-bold small text-muted text-uppercase mb-2">Sắp xếp (Sort Whitelist)</label>
+                <select class="form-select" id="selectSort" onchange="resetAndFetch()">
+                    <option value="-id">Mới nhất (sort=-id)</option>
+                    <option value="id">Cũ nhất (sort=id)</option>
+                    <option value="price">Giá tăng dần (sort=price)</option>
+                    <option value="-price">Giá giảm dần (sort=-price)</option>
+                    <option value="-price,title">Đa khóa: Giá giảm + Tiêu đề A-Z (-price,title)</option>
+                    <option value="title">Tựa đề A-Z (sort=title)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="row g-3 mt-1 align-items-center">
+            <!-- Limit Selector -->
+            <div class="col-6 col-md-3">
+                <label class="form-label fw-bold small text-muted text-uppercase mb-2">Số lượng / trang (Limit)</label>
+                <select class="form-select form-select-sm" id="selectLimit" onchange="resetAndFetch()">
+                    <option value="6" selected>6 cuốn / trang</option>
+                    <option value="12">12 cuốn / trang</option>
+                    <option value="20">20 cuốn / trang</option>
+                </select>
+            </div>
+
+            <!-- Quick Filter in_stock -->
+            <div class="col-6 col-md-3">
+                <label class="form-label fw-bold small text-muted text-uppercase mb-2">Tình trạng kho</label>
+                <select class="form-select form-select-sm" id="selectStock" onchange="resetAndFetch()">
+                    <option value="">Tất cả kho</option>
+                    <option value="true">Còn hàng (in_stock=true)</option>
+                </select>
+            </div>
+
+            <div class="col-12 col-md-6 text-md-end pt-3">
+                <button class="btn btn-outline-primary btn-sm me-2" onclick="resetAndFetch()">
+                    <i class="fa-solid fa-arrows-rotate me-1"></i>Làm mới
+                </button>
+                <a href="/api/v1/categories" target="_blank" class="btn btn-outline-secondary btn-sm me-2">
+                    <i class="fa-solid fa-tags me-1"></i>/api/v1/categories
+                </a>
+                <button class="btn btn-outline-dark btn-sm" type="button" data-bs-toggle="collapse" data-bs-target="#jsonCollapse">
+                    <i class="fa-solid fa-code me-1"></i>Xem Raw JSON
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live API URL Bar -->
+    <div class="mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="small fw-bold text-muted text-uppercase"><i class="fa-solid fa-terminal me-1"></i>URL Endpoint đang gọi:</span>
+            <span class="badge bg-secondary" id="latencyBadge">Response: ~ms</span>
+        </div>
+        <div class="api-url-box d-flex justify-content-between align-items-center">
+            <span id="currentApiUrl">GET /api/v1/books</span>
+            <button class="btn btn-sm btn-link text-white-50 p-0 text-decoration-none" onclick="copyUrl()" title="Copy URL">
+                <i class="fa-regular fa-copy"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Collapsible Raw JSON Viewer -->
+    <div class="collapse mb-4" id="jsonCollapse">
+        <div class="card p-3 bg-dark">
+            <div class="d-flex justify-content-between text-white-50 small mb-2">
+                <span><i class="fa-brands fa-js me-1"></i>Raw JSON Response Payload</span>
+                <span id="responseStatus">Status: 200 OK</span>
+            </div>
+            <pre class="json-viewer mb-0" id="jsonOutput">// JSON response will appear here...</pre>
+        </div>
+    </div>
+
+    <!-- Strategy Description Alert -->
+    <div class="alert alert-info d-flex align-items-center mb-4" id="strategyExplanation">
+        <i class="fa-solid fa-circle-info fs-4 me-3"></i>
+        <div class="small" id="strategyInfoText">
+            Đang tải dữ liệu...
+        </div>
+    </div>
+
+    <!-- Books Grid Container -->
+    <div class="row g-4" id="booksContainer">
+        <!-- Book Cards rendered by JS -->
+    </div>
+
+    <!-- Empty State -->
+    <div class="text-center py-5 d-none" id="emptyState">
+        <i class="fa-solid fa-box-open fs-1 text-muted mb-3"></i>
+        <h5 class="text-muted">Không tìm thấy cuốn sách nào thỏa mãn bộ lọc</h5>
+    </div>
+
+    <!-- Dynamic Pagination Footer -->
+    <div class="card p-3 mt-4">
+        <!-- Offset Controls -->
+        <div id="offsetControls" class="d-none">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div class="small text-muted" id="offsetSummary">
+                    Hiển thị 1 - 6 trong tổng số 60 cuốn sách
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-outline-primary btn-sm px-3" id="btnPrevOffset" onclick="offsetPrev()">
+                        <i class="fa-solid fa-chevron-left me-1"></i>Trang trước
+                    </button>
+                    <span class="badge bg-primary px-3 py-2" id="offsetPageBadge">Trang 1 / 10</span>
+                    <button class="btn btn-outline-primary btn-sm px-3" id="btnNextOffset" onclick="offsetNext()">
+                        Trang sau<i class="fa-solid fa-chevron-right ms-1"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cursor Controls -->
+        <div id="cursorControls">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                    <span class="small text-muted d-block mb-1">Cursor hiện tại:</span>
+                    <span class="token-badge" id="cursorBadge">Trang đầu (Initial Seek)</span>
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-secondary btn-sm" onclick="resetAndFetch()">
+                        <i class="fa-solid fa-arrow-rotate-left me-1"></i>Về đầu trang
+                    </button>
+                    <button class="btn btn-primary btn-sm px-4 fw-bold" id="btnNextCursor" onclick="cursorNext()">
+                        Tải trang tiếp theo (Next Cursor) <i class="fa-solid fa-forward-step ms-1"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let state = {
+        strategy: 'cursor',
+        limit: 6,
+        offset: 0,
+        currentCursor: null,
+        nextCursor: null,
+        hasMore: false,
+        total: 0,
+        currentPage: 1,
+        totalPages: 1
+    };
+
+    function setStrategy(st) {
+        state.strategy = st;
+        document.getElementById('btnCursor').classList.toggle('active', st === 'cursor');
+        document.getElementById('btnOffset').classList.toggle('active', st === 'offset');
+        document.getElementById('cursorControls').classList.toggle('d-none', st !== 'cursor');
+        document.getElementById('offsetControls').classList.toggle('d-none', st !== 'offset');
+        resetAndFetch();
+    }
+
+    function resetAndFetch() {
+        state.offset = 0;
+        state.currentCursor = null;
+        state.nextCursor = null;
+        fetchBooks();
+    }
+
+    function offsetNext() {
+        state.offset += state.limit;
+        fetchBooks();
+    }
+
+    function offsetPrev() {
+        state.offset = Math.max(0, state.offset - state.limit);
+        fetchBooks();
+    }
+
+    function cursorNext() {
+        if (!state.nextCursor) return;
+        state.currentCursor = state.nextCursor;
+        fetchBooks();
+    }
+
+    async function fetchBooks() {
+        const genre = document.getElementById('selectGenre').value;
+        const sort = document.getElementById('selectSort').value;
+        const limit = parseInt(document.getElementById('selectLimit').value) || 6;
+        const inStock = document.getElementById('selectStock').value;
+        state.limit = limit;
+
+        const params = new URLSearchParams();
+        params.set('strategy', state.strategy);
+        params.set('limit', limit);
+        params.set('sort', sort);
+
+        if (genre) params.set('genre', genre);
+        if (inStock) params.set('in_stock', inStock);
+
+        if (state.strategy === 'offset') {
+            params.set('offset', state.offset);
+        } else if (state.strategy === 'cursor' && state.currentCursor) {
+            params.set('cursor', state.currentCursor);
+        }
+
+        const url = `/api/v1/books?${params.toString()}`;
+        document.getElementById('currentApiUrl').innerText = `GET ${url}`;
+
+        const startTime = performance.now();
+        try {
+            const resp = await fetch(url);
+            const endTime = performance.now();
+            document.getElementById('latencyBadge').innerText = `Response: ${(endTime - startTime).toFixed(0)} ms`;
+            document.getElementById('responseStatus').innerText = `Status: ${resp.status} ${resp.statusText}`;
+
+            const json = await resp.json();
+            document.getElementById('jsonOutput').innerText = JSON.stringify(json, null, 2);
+
+            if (!resp.ok) {
+                alert(`Lỗi API (${resp.status}): ${json.message || json.error}`);
+                return;
+            }
+
+            renderBooks(json.data || []);
+            updatePaginationUI(json.pagination || {});
+        } catch (err) {
+            console.error(err);
+            alert('Không thể kết nối đến server: ' + err.message);
+        }
+    }
+
+    function renderBooks(books) {
+        const container = document.getElementById('booksContainer');
+        const emptyState = document.getElementById('emptyState');
+
+        if (!books || books.length === 0) {
+            container.innerHTML = '';
+            emptyState.classList.remove('d-none');
+            return;
+        }
+
+        emptyState.classList.add('d-none');
+        container.innerHTML = books.map(b => {
+            const authors = (b.authors || []).map(a => a.name).join(', ') || 'Nhiều tác giả';
+            const price = b.price ? b.price.amount.toLocaleString('vi-VN') + ' đ' : 'Liên hệ';
+            const genreSlug = b.genre || (b.category ? b.category.slug : 'other');
+            const genreName = b.category ? b.category.name : genreSlug;
+
+            return `
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card p-3 book-card">
+                    <div>
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <span class="badge badge-genre genre-${genreSlug}">${genreName}</span>
+                            <span class="badge ${b.inStock ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'} small">
+                                ${b.inStock ? '<i class="fa-solid fa-check me-1"></i>Còn ' + b.stock : 'Hết hàng'}
+                            </span>
+                        </div>
+                        <h6 class="fw-bold mb-1 text-dark" title="${b.title}">${b.title}</h6>
+                        <p class="small text-muted mb-2"><i class="fa-solid fa-user-pen me-1"></i>${authors}</p>
+                    </div>
+                    <div class="pt-2 border-top mt-2 d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="small text-muted d-block" style="font-size: 0.7rem;">GIÁ BÁN</span>
+                            <span class="price-tag">${price}</span>
+                        </div>
+                        <div class="text-end">
+                            <span class="badge bg-light text-muted border font-monospace small">${b.id}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+        }).join('');
+    }
+
+    function updatePaginationUI(p) {
+        const exp = document.getElementById('strategyInfoText');
+
+        if (p.strategy === 'offset') {
+            document.getElementById('strategyExplanation').className = 'alert alert-primary d-flex align-items-center mb-4';
+            exp.innerHTML = `<b>Chiến thuật Offset / Limit:</b> Server duyệt qua <code>OFFSET ${p.offset}</code> và trả về <code>${p.limit}</code> cuốn. Phù hợp UI dạng nhảy trang (Trang <b>${p.current_page} / ${p.total_pages}</b>, Tổng: <b>${p.total}</b> cuốn).`;
+
+            document.getElementById('offsetSummary').innerText = `Hiển thị offset ${p.offset} - ${p.offset + state.limit} / Tổng ${p.total} cuốn sách`;
+            document.getElementById('offsetPageBadge').innerText = `Trang ${p.current_page} / ${p.total_pages}`;
+            document.getElementById('btnPrevOffset').disabled = !p.has_prev;
+            document.getElementById('btnNextOffset').disabled = !p.has_next;
+        } else {
+            document.getElementById('strategyExplanation').className = 'alert alert-info d-flex align-items-center mb-4';
+            state.nextCursor = p.next_cursor;
+            state.hasMore = p.has_more;
+
+            document.getElementById('cursorBadge').innerText = state.currentCursor ? state.currentCursor : '(Trang đầu tiên)';
+            const btnNext = document.getElementById('btnNextCursor');
+            btnNext.disabled = !p.has_more;
+
+            if (p.has_more) {
+                btnNext.innerHTML = `Tải trang tiếp theo (Next Cursor) <i class="fa-solid fa-forward-step ms-1"></i>`;
+                exp.innerHTML = `<b>Chiến thuật Cursor-based:</b> Sử dụng Opaque Token mã hóa giá trị cột sắp xếp & tie-breaker <code>id</code>. Đảm bảo tốc độ <b>O(1)</b> và tính nhất quán dữ liệu khi có bản ghi mới thêm vào.`;
+            } else {
+                btnNext.innerHTML = `Đã đến trang cuối cùng <i class="fa-solid fa-check ms-1"></i>`;
+                exp.innerHTML = `<b>Đã duyệt hết toàn bộ collection!</b> Không còn bản ghi kế tiếp (<code>has_more: false</code>).`;
+            }
+        }
+    }
+
+    function copyUrl() {
+        const text = document.getElementById('currentApiUrl').innerText.replace('GET ', window.location.origin);
+        navigator.clipboard.writeText(text);
+        alert('Đã copy đường dẫn URL: ' + text);
+    }
+
+    // Auto load on start
+    window.addEventListener('DOMContentLoaded', () => {
+        fetchBooks();
+    });
+</script>
+
+</body>
+</html>
+"""
+
+@app.get("/")
+def demo_ui():
+    """Giao diện Web tương tác trực quan kiểm thử phân trang trên Localhost."""
+    return render_template_string(DEMO_HTML)
+
+
+# ============================================================================
+# API ROUTES
+# ============================================================================
 
 @app.get("/api/v1/books")
 def list_books():

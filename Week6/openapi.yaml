@@ -1,0 +1,504 @@
+openapi: 3.0.3
+info:
+  title: Social Network API - Auth & Posts Service
+  description: |
+    Đặc tả API Xác thực và Phân quyền cho hệ thống Mạng xã hội.
+    Phục vụ Bài tập Tuần 6 - Học phần Kỹ thuật Hướng Dịch vụ.
+
+    **Các tính năng bảo mật nổi bật:**
+    - Xác thực dựa trên chuẩn **JWT** với cặp Access Token và Refresh Token.
+    - Phân quyền theo mô hình **RBAC** kết hợp **OAuth 2.0 Scopes**.
+    - Phân quyền theo đối tượng **Object-Level Authorization**.
+    - Chuẩn hóa thông báo lỗi theo **RFC 7807** với `Content-Type: application/problem+json`.
+  version: 1.0.0
+  contact:
+    name: Phạm Tuấn Phong
+    email: 24021596@vnu.edu.vn
+
+servers:
+  - url: http://127.0.0.1:5000/api/v1
+    description: Máy chủ thử nghiệm cục bộ
+
+tags:
+  - name: Authentication
+    description: Các endpoint xử lý phiên làm việc, đăng nhập, cấp mới và thu hồi token
+  - name: Posts
+    description: Quản lý bài viết trên mạng xã hội với chính sách phân quyền theo đối tượng
+
+paths:
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Xác thực người dùng và cấp phát cặp token
+      description: |
+        Endpoint công khai dùng để định danh và xác thực người dùng qua email và mật khẩu.
+        
+        **Yêu cầu Scope:** Không yêu cầu.
+        
+        **Cơ chế hoạt động:**
+        - Mật khẩu được xác minh an toàn bằng hàm băm kháng brute-force (Argon2id / bcrypt).
+        - Trả về mã token `accessToken` và `refreshToken`.
+        - Tuyệt đối không để lộ thông tin nhạy cảm (`password_hash`, PII) trong phản hồi hoặc JWT payload.
+      operationId: loginUser
+      security: []
+      requestBody:
+        required: true
+        description: Thông tin chứng thực gồm email và mật khẩu của người dùng
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Đăng nhập thành công, cấp phát cặp token và thông tin người dùng
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+              description: Ngăn chặn trình duyệt hoặc proxy lưu trữ token trong cache
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Yêu cầu không hợp lệ
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              example:
+                type: "https://api.social.net/errors/validation-error"
+                title: "Invalid Request Payload"
+                status: 400
+                detail: "Trường 'email' không đúng định dạng hoặc thiếu mật khẩu."
+                instance: "/api/v1/auth/login"
+        '401':
+          description: Xác thực thất bại (Sai email hoặc sai mật khẩu)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              example:
+                type: "https://api.social.net/errors/invalid-credentials"
+                title: "Authentication Failed"
+                status: 401
+                detail: "Email hoặc mật khẩu không chính xác."
+                instance: "/api/v1/auth/login"
+        '422':
+          description: Dữ liệu JSON không thể xử lý cú pháp
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '429':
+          description: Vượt quá giới hạn số lần thử đăng nhập (Rate limit chống Brute-force & Credential Stuffing)
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                example: 60
+              description: Số giây client cần đợi trước khi thử lại
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              example:
+                type: "https://api.social.net/errors/rate-limit-exceeded"
+                title: "Too Many Requests"
+                status: 429
+                detail: "Bạn đã đăng nhập sai quá nhiều lần. Vui lòng thử lại sau 60 giây."
+                instance: "/api/v1/auth/login"
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Cấp mới Access Token bằng Refresh Token (Token Rotation)
+      description: |
+        Endpoint làm mới phiên truy cập mà không yêu cầu người dùng phải nhập lại mật khẩu.
+        
+        **Yêu cầu Scope / Xác thực:**
+        - Gửi Refresh Token hợp lệ qua header `Authorization: Bearer <refresh_token>` hoặc trường `refreshToken` trong request body.
+        - Token phải có type là `refresh` và scope `offline_access`.
+        
+        **Cơ chế bảo vệ:**
+        - Kiểm tra tính hợp lệ và thời hạn sống của Refresh Token.
+        - Kiểm tra mã `jti` của Refresh Token trong Blocklist thu hồi (Revocation check).
+        - Thực hiện xoay vòng token (Refresh Token Rotation): Cấp mới cả Access Token và Refresh Token mới, đồng thời vô hiệu hóa Refresh Token cũ để chống tấn công Token Replay.
+      operationId: refreshToken
+      security:
+        - RefreshBearerAuth: []
+      requestBody:
+        required: false
+        description: Tùy chọn gửi refresh token trong body nếu không dùng header Authorization
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken:
+                  type: string
+                  description: Chuỗi Refresh Token JWT
+      responses:
+        '200':
+          description: Cấp mới Access Token thành công
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                example: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshResponse'
+        '400':
+          description: Yêu cầu thiếu Refresh Token hoặc token bị lỗi cú pháp
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+        '401':
+          description: Refresh Token không hợp lệ, đã hết hạn hoặc đã bị thu hồi trong Blocklist
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              examples:
+                expired:
+                  summary: Token hết hạn
+                  value:
+                    type: "https://api.social.net/errors/token-expired"
+                    title: "Token Expired"
+                    status: 401
+                    detail: "Refresh token đã hết hạn. Vui lòng đăng nhập lại."
+                revoked:
+                  summary: Token đã bị thu hồi
+                  value:
+                    type: "https://api.social.net/errors/token-revoked"
+                    title: "Token Revoked"
+                    status: 401
+                    detail: "Refresh token này đã bị thu hồi hoặc đã được sử dụng trước đó (Replay Detection)."
+        '403':
+          description: Token không hợp lệ cho thao tác refresh (Ví dụ nhầm lẫn giữa Access Token và Refresh Token)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              example:
+                type: "https://api.social.net/errors/invalid-token-type"
+                title: "Invalid Token Type"
+                status: 403
+                detail: "Chỉ chấp nhận token loại 'refresh' cho endpoint này."
+        '429':
+          description: Vượt quá tần suất làm mới token cho phép
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+  /posts/{id}:
+    get:
+      tags:
+        - Posts
+      summary: Lấy thông tin chi tiết một bài viết theo ID
+      description: |
+        Endpoint truy xuất nội dung bài viết, áp dụng mô hình phân quyền chặt chẽ 3 lớp:
+        1. **Lớp 1 (AuthN):** Kiểm tra tính hợp lệ và thời hạn của Access Token.
+        2. **Lớp 2 (AuthZ Scope):** Yêu cầu caller phải có scope `posts:read`.
+        3. **Lớp 3 (Object-Level Authorization / BOLA Prevention):**
+           - Nếu bài viết ở chế độ `public`: Mọi người dùng đã xác thực đều có quyền đọc.
+           - Nếu bài viết ở chế độ `private` hoặc `friends_only`: Chỉ chính tác giả sở hữu (`current_user.id == post.author_id`) hoặc người dùng nằm trong danh sách bạn bè mới được truy cập.
+      operationId: getPostById
+      security:
+        - OAuth2Auth:
+            - posts:read
+        - AccessBearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Mã định danh duy nhất của bài viết cần truy xuất
+          schema:
+            type: integer
+            example: 101
+      responses:
+        '200':
+          description: Truy xuất thông tin bài viết thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostResponse'
+        '401':
+          description: Thiếu Access Token, token hết hạn hoặc chữ ký token không hợp lệ
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              examples:
+                missing:
+                  summary: Thiếu header Authorization
+                  value:
+                    type: "https://api.social.net/errors/unauthorized"
+                    title: "Missing Token"
+                    status: 401
+                    detail: "Yêu cầu cung cấp Bearer token trong header Authorization."
+                expired:
+                  summary: Access token hết hạn
+                  value:
+                    type: "https://api.social.net/errors/token-expired"
+                    title: "Access Token Expired"
+                    status: 401
+                    detail: "Access token đã hết hạn lúc 2026-10-23T10:00:00Z. Vui lòng refresh token."
+        '403':
+          description: |
+            Bị từ chối quyền truy cập (Quyền hành động hoặc Quyền đối tượng):
+            - Lỗi 1: Token thiếu scope `posts:read`.
+            - Lỗi 2 (BOLA): Người dùng không sở hữu bài viết riêng tư này.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              examples:
+                insufficient_scope:
+                  summary: Thiếu Scope
+                  value:
+                    type: "https://api.social.net/errors/insufficient-scope"
+                    title: "Insufficient Scope"
+                    status: 403
+                    detail: "Token của bạn không có scope 'posts:read' được yêu cầu."
+                bola_forbidden:
+                  summary: Vi phạm quyền đối tượng (BOLA)
+                  value:
+                    type: "https://api.social.net/errors/forbidden-resource"
+                    title: "Forbidden Resource"
+                    status: 403
+                    detail: "Bạn không có quyền xem bài viết riêng tư này của người dùng khác."
+        '404':
+          description: Không tìm thấy bài viết (hoặc bài viết riêng tư được ẩn dưới mã 404 để tránh lộ sự tồn tại)
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+              example:
+                type: "https://api.social.net/errors/not-found"
+                title: "Post Not Found"
+                status: 404
+                detail: "Không tìm thấy bài viết với mã ID=101."
+        '429':
+          description: Vượt quá giới hạn số lượng request API
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+
+components:
+  securitySchemes:
+    AccessBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Gửi Access Token JWT thông qua header HTTP:
+        `Authorization: Bearer <accessToken>`
+    RefreshBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Gửi Refresh Token JWT thông qua header HTTP:
+        `Authorization: Bearer <refreshToken>`
+    OAuth2Auth:
+      type: oauth2
+      description: Phân quyền ủy quyền dựa trên OAuth 2.0 Scopes
+      flows:
+        authorizationCode:
+          authorizationUrl: http://127.0.0.1:5000/oauth/authorize
+          tokenUrl: http://127.0.0.1:5000/oauth/token
+          scopes:
+            posts:read: Quyền đọc và truy xuất danh sách hoặc chi tiết bài viết
+            posts:write: Quyền tạo mới, chỉnh sửa hoặc xóa bài viết
+            profile: Quyền xem thông tin hồ sơ cá nhân
+            offline_access: Quyền duy trì phiên làm việc và làm mới token (Refresh token)
+
+  schemas:
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: user@vnu.edu.vn
+          description: Địa chỉ email đăng ký tài khoản
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: P@ssw0rdSecure2026!
+          description: Mật khẩu người dùng (tối thiểu 8 ký tự)
+
+    LoginResponse:
+      type: object
+      required:
+        - accessToken
+        - refreshToken
+        - tokenType
+        - expiresIn
+        - user
+      properties:
+        accessToken:
+          type: string
+          description: JWT Access Token dùng để gọi các protected API (thời hạn 15 phút)
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMDEiLCJyb2xlcyI6WyJ1c2VyIl0sInNjb3BlcyI6WyJwb3N0czpyZWFkIl0sImV4cCI6MTcyNDAxMjAwMCwianRpIjoiYTAwMSJ9.signature"
+        refreshToken:
+          type: string
+          description: JWT Refresh Token dùng để cấp mới Access Token khi hết hạn (thời hạn 30 ngày)
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMDEiLCJ0eXBlIjoicmVmcmVzaCIsImV4cCI6MTcyNjYwNDAwMCwianRpIjoicjAwMSJ9.signature"
+        tokenType:
+          type: string
+          example: Bearer
+        expiresIn:
+          type: integer
+          description: Thời gian sống của Access Token tính bằng giây
+          example: 900
+        user:
+          $ref: '#/components/schemas/UserPublicDto'
+
+    RefreshResponse:
+      type: object
+      required:
+        - accessToken
+        - refreshToken
+        - tokenType
+        - expiresIn
+      properties:
+        accessToken:
+          type: string
+          description: Access Token mới được cấp
+        refreshToken:
+          type: string
+          description: Refresh Token mới được xoay vòng (Token Rotation)
+        tokenType:
+          type: string
+          example: Bearer
+        expiresIn:
+          type: integer
+          example: 900
+
+    UserPublicDto:
+      type: object
+      required:
+        - id
+        - username
+        - email
+        - roles
+      properties:
+        id:
+          type: integer
+          example: 101
+        username:
+          type: string
+          example: tuanphong
+        email:
+          type: string
+          format: email
+          example: user@vnu.edu.vn
+        roles:
+          type: array
+          items:
+            type: string
+          example: ["user"]
+        scopes:
+          type: array
+          items:
+            type: string
+          example: ["posts:read", "posts:write"]
+
+    PostResponse:
+      type: object
+      required:
+        - id
+        - title
+        - content
+        - visibility
+        - author
+        - createdAt
+      properties:
+        id:
+          type: integer
+          example: 101
+        title:
+          type: string
+          example: "Báo cáo thực hành Kỹ thuật Hướng Dịch vụ Tuần 6"
+        content:
+          type: string
+          example: "Bài tập về thiết kế Authentication và Authorization cho REST API..."
+        visibility:
+          type: string
+          enum: [public, friends_only, private]
+          example: public
+        author:
+          type: object
+          properties:
+            id:
+              type: integer
+              example: 42
+            username:
+              type: string
+              example: phong_dev
+        tags:
+          type: array
+          items:
+            type: string
+          example: ["api", "security", "jwt"]
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-10-23T14:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2026-10-23T15:00:00Z"
+
+    ProblemDetails:
+      type: object
+      description: Cấu trúc mô tả lỗi chuẩn hóa theo tiêu chuẩn RFC 7807 (Problem Details for HTTP APIs)
+      required:
+        - type
+        - title
+        - status
+      properties:
+        type:
+          type: string
+          format: uri
+          description: Đường dẫn URI định danh loại lỗi
+          example: "https://api.social.net/errors/forbidden-resource"
+        title:
+          type: string
+          description: Tóm tắt ngắn gọn loại lỗi bằng ngôn ngữ tự nhiên
+          example: "Forbidden Resource"
+        status:
+          type: integer
+          description: Mã trạng thái HTTP
+          example: 403
+        detail:
+          type: string
+          description: Mô tả chi tiết nguyên nhân lỗi xảy ra trong ngữ cảnh cụ thể
+          example: "Bạn không có quyền đọc bài viết riêng tư này."
+        instance:
+          type: string
+          description: Đường dẫn URI của endpoint gây ra lỗi
+          example: "/api/v1/posts/101"
+        code:
+          type: string
+          description: Mã lỗi định danh nghiệp vụ cho client xử lý
+          example: "BOLA_ACCESS_DENIED"
+        traceId:
+          type: string
+          description: Mã định danh truy vết log phục vụ điều tra lỗi
+          example: "req-98f2b8e3-20261023"
+
