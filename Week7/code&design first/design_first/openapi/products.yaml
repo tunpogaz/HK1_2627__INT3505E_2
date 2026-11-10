@@ -1,0 +1,172 @@
+# OpenAPI 3.0 (Theo đúng Slide 7 của bài giảng)
+openapi: 3.0.3
+info:
+  title: Product API (Design-First)
+  description: API thiết kế theo phong cách Design-First với Connexion (Slide 7-9)
+  version: 1.0.0
+
+paths:
+  /products:
+    get:
+      summary: Lấy danh sách sản phẩm (Slide 7, 9)
+      operationId: products.list_products
+      responses:
+        '200':
+          description: Danh sách sản phẩm
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: array
+                    items:
+                      $ref: '#/components/schemas/ProductOut'
+                  - $ref: '#/components/schemas/ProductPagination'
+    post:
+      summary: Tạo sản phẩm mới (Slide 7, 9)
+      operationId: products.create_product
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductIn'
+      responses:
+        '201':
+          description: Đã tạo thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductOut'
+        '409':
+          description: SKU đã tồn tại (Conflict)
+        '422':
+          description: Dữ liệu không hợp lệ (Validation)
+
+  /products/{id}:
+    get:
+      summary: Lấy 1 sản phẩm theo ID (Slide 7, 9)
+      operationId: products.get_product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Tìm thấy sản phẩm
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductOut'
+        '404':
+          description: Không tìm thấy sản phẩm
+
+    delete:
+      summary: Xóa sản phẩm (Slide 24, 28)
+      operationId: products.delete_product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Đã xóa thành công
+        '404':
+          description: Không tìm thấy sản phẩm
+
+  /products/{id}/reserve:
+    post:
+      summary: Đặt trước tồn kho (Slide 24, 28)
+      operationId: products.reserve_product
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReserveIn'
+      responses:
+        '200':
+          description: Giữ hàng thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductOut'
+        '409':
+          description: Hết hàng trong kho (OutOfStock)
+
+components:
+  schemas:
+    ProductIn:
+      type: object
+      required:
+        - sku
+        - name
+        - price_cents
+      properties:
+        sku:
+          type: string
+          minLength: 3
+          maxLength: 32
+          example: 'SKU-IPHONE-15'
+        name:
+          type: string
+          minLength: 1
+          example: 'iPhone 15 Pro'
+        price_cents:
+          type: integer
+          minimum: 0
+          example: 120000
+        qty_in_stock:
+          type: integer
+          minimum: 0
+          default: 0
+          example: 10
+
+    ProductOut:
+      type: object
+      properties:
+        id:
+          type: integer
+        sku:
+          type: string
+        name:
+          type: string
+        price_cents:
+          type: integer
+        qty_in_stock:
+          type: integer
+        archived:
+          type: boolean
+
+    ProductPagination:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductOut'
+        total:
+          type: integer
+        page:
+          type: integer
+        size:
+          type: integer
+
+    ReserveIn:
+      type: object
+      required:
+        - qty
+      properties:
+        qty:
+          type: integer
+          minimum: 1
+          example: 1
