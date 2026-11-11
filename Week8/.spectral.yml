@@ -1,0 +1,40 @@
+extends: ["spectral:oas"]
+
+rules:
+  info-contact: "off"
+  operation-description: "off"
+  operation-tags: "off"
+
+  # 1. Bắt lỗi 2 (Lab 2): Response 204 không được chứa body/content
+  no-body-in-204-response:
+    description: "HTTP 204 No Content response must not define a content body."
+    message: "HTTP 204 No Content must not declare content body"
+    severity: error
+    given: "$.paths..responses['204']"
+    then:
+      field: content
+      function: undefined
+
+  # 2. Bắt lỗi 3 (Lab 2): Book.year phải có type là integer để khớp với DB model
+  book-year-type-integer:
+    description: "Book.year must be typed as integer to match database model."
+    message: "Property 'year' in Book schema must have type: integer"
+    severity: error
+    given: "$.components.schemas.Book.properties.year"
+    then:
+      field: type
+      function: pattern
+      functionOptions:
+        match: "^integer$"
+
+  # 3. Custom rule theo yêu cầu Slide Lab 2:
+  # "response 200 phải có nhiều hơn 0 trường trong schema"
+  # (Bắt các response 200 trả về object nhưng schema lại rỗng, không khai báo thuộc tính)
+  response-200-schema-not-empty:
+    description: "HTTP 200 response of type object must define at least one property."
+    message: "HTTP 200 response schema must define properties (non-empty schema)"
+    severity: error
+    given: "$.paths..responses['200'].content['application/json'].schema[?(@.type == 'object')]"
+    then:
+      field: properties
+      function: defined
