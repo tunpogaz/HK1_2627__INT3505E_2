@@ -1,8 +1,3 @@
-"""Lab 4 starter: weighted tasks, optional 404, no deliberate server errors.
-
-Run: locust -f performance/locustfile.py --headless -H http://127.0.0.1:5000 \
-         -u 10 -r 2 -t 30s --html reports/A.html
-"""
 import itertools
 import random
 
@@ -24,7 +19,7 @@ class BooksUser(HttpUser):
         with self.client.get(
             f"/books/{book_id}", name="GET /books/{id}", catch_response=True
         ) as response:
-            # Expected 404 (random id absent) is not an operational failure.
+            # Expected 404 is not an operational failure.
             if response.status_code in (200, 404):
                 response.success()
             else:
@@ -46,9 +41,6 @@ class BooksUser(HttpUser):
             f"/books?year={year}", name="GET /books?year=[year]", catch_response=True
         ) as response:
             if response.status_code == 200:
-                # Giả lập 1% client-side failure để quan sát tỉ lệ failure rate trên báo cáo
-                # Lưu ý: Đây là lỗi do client-side Locust tự đánh dấu bằng response.failure(),
-                # KHÔNG PHẢI lỗi HTTP 500 phát sinh từ backend server.
                 if random.random() < 0.01:
                     response.failure("Simulated 1% client-side SLA threshold breach")
                 else:
