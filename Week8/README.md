@@ -86,6 +86,34 @@ newman run books-api.postman_collection.json \
   -r cli,junit --reporter-junit-export reports/junit.xml
 ```
 
+Hoặc chạy nhanh bằng script tự động:
+```bash
+./run_lab03_newman.sh
+```
+
+### Kết quả chạy Newman Lab 3
+
+- **Số lượng request**: 7 (5 happy-path + 2 error-path trong `error-cases/`).
+- **Tổng số assertions**: 14/14 passed (100%).
+- **Thời gian thực thi**: ~171 ms (< 10 giây).
+- **Báo cáo JUnit**: Đã xuất ra file `junit.xml` và `reports/junit.xml` với 7 test suites, 0 failures.
+
+```text
+┌─────────────────────────┬──────────────────┬──────────────────┐
+│                         │         executed │           failed │
+├─────────────────────────┼──────────────────┼──────────────────┤
+│              iterations │                1 │                0 │
+├─────────────────────────┼──────────────────┼──────────────────┤
+│                requests │                7 │                0 │
+├─────────────────────────┼──────────────────┼──────────────────┤
+│            test-scripts │                7 │                0 │
+├─────────────────────────┼──────────────────┼──────────────────┤
+│              assertions │               14 │                0 │
+├─────────────────────────┴──────────────────┴──────────────────┤
+│ total run duration: 171ms                                     │
+└───────────────────────────────────────────────────────────────┘
+```
+
 Lưu ý: cần chạy server trước. `data.csv` là dữ liệu ví dụ để thực hành data-driven iteration; khi sử dụng `-d data.csv`, collection sẽ lặp theo số hàng. Đừng hard-code credentials/tokens trong file đẩy lên Git.
 
 ## 5. Lab 4 — Locust
