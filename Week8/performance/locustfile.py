@@ -39,5 +39,19 @@ class BooksUser(HttpUser):
             name="POST /books",
         )
 
-    # LAB 4: add search_by_year() and explain any injected failures.
-    # A client-side artificial failure is not a real HTTP 500 from the server.
+    @task(2)
+    def search_by_year(self):
+        year = random.randint(1950, 2025)
+        with self.client.get(
+            f"/books?year={year}", name="GET /books?year=[year]", catch_response=True
+        ) as response:
+            if response.status_code == 200:
+                # Giả lập 1% client-side failure để quan sát tỉ lệ failure rate trên báo cáo
+                # Lưu ý: Đây là lỗi do client-side Locust tự đánh dấu bằng response.failure(),
+                # KHÔNG PHẢI lỗi HTTP 500 phát sinh từ backend server.
+                if random.random() < 0.01:
+                    response.failure("Simulated 1% client-side SLA threshold breach")
+                else:
+                    response.success()
+            else:
+                response.failure(f"Unexpected status {response.status_code}")
